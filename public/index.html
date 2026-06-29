@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sekai Card Regenerator — Blossoming Sekai</title>
+  <meta name="description" content="Regenerate your Sekai profile card by Discord ID. Clear cached cards and generate fresh ones instantly." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/public/style.css" />
+</head>
+<body>
+  <div class="bg-particles" id="bgParticles"></div>
+
+  <main class="container">
+    <header class="header">
+      <div class="logo-mark">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="16" stroke="url(#logoGrad)" stroke-width="2.5" />
+          <path d="M12 18C12 14.686 14.686 12 18 12C21.314 12 24 14.686 24 18C24 21.314 21.314 24 18 24" stroke="url(#logoGrad)" stroke-width="2.5" stroke-linecap="round" />
+          <circle cx="18" cy="18" r="3" fill="url(#logoGrad)" />
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="36" y2="36">
+              <stop stop-color="#a78bfa" />
+              <stop offset="1" stop-color="#f472b6" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <h1 class="title">Sekai Card <span class="accent">Regenerator</span></h1>
+      <p class="subtitle">Clear cache &amp; generate a fresh profile card</p>
+    </header>
+
+    <section class="panel" id="mainPanel">
+      <div class="input-group">
+        <label for="discordId" class="input-label">Discord User ID</label>
+        <div class="input-wrapper">
+          <svg class="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <input
+            type="text"
+            id="discordId"
+            placeholder="e.g. 123456789012345678"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button class="clear-btn" id="clearBtn" title="Clear" aria-label="Clear input">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <button class="regen-btn" id="regenBtn" disabled>
+        <svg class="regen-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        <span class="btn-text">Regenerate Card</span>
+        <div class="btn-loader" id="btnLoader">
+          <div class="spinner"></div>
+        </div>
+      </button>
+    </section>
+
+    <section class="result-area" id="resultArea">
+      <div class="state state--idle" id="stateIdle">
+        <div class="idle-illustration">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <rect x="8" y="12" width="48" height="36" rx="4" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+            <circle cx="24" cy="28" r="6" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+            <path d="M12 40l12-8 8 6 12-10 8 6" stroke="currentColor" stroke-width="2" opacity="0.3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <p class="idle-text">Enter a Discord ID above to regenerate a card</p>
+      </div>
+
+      <div class="state state--loading hidden" id="stateLoading">
+        <div class="pulse-ring"></div>
+        <div class="loading-steps" id="loadingSteps">
+          <div class="step" id="stepClear">
+            <div class="step-indicator"></div>
+            <span>Clearing cached image…</span>
+          </div>
+          <div class="step" id="stepGenerate">
+            <div class="step-indicator"></div>
+            <span>Generating fresh card…</span>
+          </div>
+          <div class="step" id="stepFinalize">
+            <div class="step-indicator"></div>
+            <span>Finalizing…</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="state state--success hidden" id="stateSuccess">
+        <div class="success-badge">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <p class="success-text">Card regenerated successfully!</p>
+        <div class="card-preview" id="cardPreview">
+          <img id="previewImg" alt="Generated Sekai card" />
+        </div>
+        <div class="success-actions">
+          <a class="action-link" id="openCardLink" href="#" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            Open Full Image
+          </a>
+          <button class="action-link" id="regenAgainBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            Regenerate Again
+          </button>
+        </div>
+      </div>
+
+      <div class="state state--error hidden" id="stateError">
+        <div class="error-badge">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+        </div>
+        <p class="error-text" id="errorText">Something went wrong.</p>
+        <button class="retry-btn" id="retryBtn">Try Again</button>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>Blossoming Sekai Card Service &middot; <a href="/api/health" target="_blank" rel="noopener">API Health</a> &middot; <a href="/api/cache/status" target="_blank" rel="noopener">Cache Status</a></p>
+    </footer>
+  </main>
+
+  <script src="/public/app.js"></script>
+</body>
+</html>
