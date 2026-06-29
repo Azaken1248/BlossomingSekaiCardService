@@ -1,0 +1,22 @@
+{
+  "name": "misc",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "express": "^5.2.1",
+    "lucide-react": "^1.7.0",
+    "puppeteer": "^24.40.0",
+    "satori": "^0.26.0"
+  }
+}
+
