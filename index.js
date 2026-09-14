@@ -3,27 +3,64 @@ import puppeteer from "puppeteer";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  isValidDiscordId,
+  makeCardPathResolver,
+  createRateLimiter,
+  createRenderGate,
+} from "./guards.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3051;
+const PORT = Number(process.env.PORT) || 3051;
 
 const IMAGES_DIR = path.join(__dirname, "images");
 const TEMP_BASE = path.join(__dirname, "temp_downloads");
 
-if (!fs.existsSync(IMAGES_DIR)) fs.mkdirSync(IMAGES_DIR);
-if (!fs.existsSync(TEMP_BASE)) fs.mkdirSync(TEMP_BASE);
+// recursive:true so a fresh host with no parent directory does not crash on boot
+fs.mkdirSync(IMAGES_DIR, { recursive: true });
+fs.mkdirSync(TEMP_BASE, { recursive: true });
+
+const resolveCardPath = makeCardPathResolver(IMAGES_DIR);
+
+const requireDiscordId = (req, res) => {
+  if (!isValidDiscordId(req.params.id)) {
+    res.status(400).json({ error: "Invalid Discord ID" });
+    return null;
+  }
+  return req.params.id;
+};
+
+const renderGate = createRenderGate({
+  max: Number(process.env.MAX_CONCURRENT_RENDERS) || 2,
+});
+const acquireRenderSlot = (res) => renderGate.acquire(res);
+
+const renderLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 20,
+  message: "Too many card requests. Please slow down.",
+});
+
+const regenerateLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 5,
+  message: "Too many regeneration requests. Please wait a minute.",
+});
 
 app.use("/public", express.static(path.join(__dirname, "public")));
 app.get("/regenerate", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get("/api/card/:id", async (req, res) => {
-  const discordId = req.params.id;
-  const finalPath = path.join(IMAGES_DIR, `${discordId}.png`);
+app.get("/api/card/:id", renderLimiter, async (req, res) => {
+  const discordId = requireDiscordId(req, res);
+  if (!discordId) return;
+
+  const finalPath = resolveCardPath(discordId);
+  if (!finalPath) return res.status(400).json({ error: "Invalid Discord ID" });
 
   if (fs.existsSync(finalPath)) {
     console.log(`[Cache Hit] Serving ${discordId}.png`);
@@ -31,9 +68,12 @@ app.get("/api/card/:id", async (req, res) => {
     return res.sendFile(finalPath);
   }
 
+  // Past this point a browser will be launched, so claim a slot first.
+  if (!acquireRenderSlot(res)) return;
+
   const requestId = `${discordId}-${Date.now()}`;
   const requestDownloadPath = path.join(TEMP_BASE, requestId);
-  fs.mkdirSync(requestDownloadPath);
+  fs.mkdirSync(requestDownloadPath, { recursive: true });
 
   console.log(`[Cache Miss] Generating card for ${discordId}...`);
 
@@ -107,9 +147,25 @@ app.get("/api/card/:id", async (req, res) => {
   }
 });
 
-app.get("/api/regenerate/:id", async (req, res) => {
-  const discordId = req.params.id;
-  const filePath = path.join(IMAGES_DIR, `${discordId}.png`);
+// Regeneration deletes the cached card and launches a browser, so it must not
+// sit behind GET: link prefetchers, crawlers and Discord's link unfurler all
+// issue GETs, and any of them could trigger a render by accident.
+app.get("/api/regenerate/:id", (_req, res) => {
+  res.set("Allow", "POST");
+  res.status(405).json({
+    error: "Use POST to regenerate a card.",
+    hint: "POST /api/regenerate/:id",
+  });
+});
+
+app.post("/api/regenerate/:id", regenerateLimiter, async (req, res) => {
+  const discordId = requireDiscordId(req, res);
+  if (!discordId) return;
+
+  const filePath = resolveCardPath(discordId);
+  if (!filePath) return res.status(400).json({ error: "Invalid Discord ID" });
+
+  if (!acquireRenderSlot(res)) return;
 
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
@@ -118,7 +174,7 @@ app.get("/api/regenerate/:id", async (req, res) => {
 
   const requestId = `${discordId}-${Date.now()}`;
   const requestDownloadPath = path.join(TEMP_BASE, requestId);
-  fs.mkdirSync(requestDownloadPath);
+  fs.mkdirSync(requestDownloadPath, { recursive: true });
 
   console.log(`[Regenerate] Generating fresh card for ${discordId}...`);
 
@@ -157,7 +213,7 @@ app.get("/api/regenerate/:id", async (req, res) => {
 
     if (fileName) {
       const tempFilePath = path.join(requestDownloadPath, fileName);
-      const finalPath = path.join(IMAGES_DIR, `${discordId}.png`);
+      const finalPath = filePath;
 
       await new Promise((r) => setTimeout(r, 500));
       fs.renameSync(tempFilePath, finalPath);
@@ -201,8 +257,11 @@ app.get("/api/cache/status", (_req, res) => {
 });
 
 app.delete("/api/cache/:id", (req, res) => {
-  const discordId = req.params.id;
-  const filePath = path.join(IMAGES_DIR, `${discordId}.png`);
+  const discordId = requireDiscordId(req, res);
+  if (!discordId) return;
+
+  const filePath = resolveCardPath(discordId);
+  if (!filePath) return res.status(400).json({ error: "Invalid Discord ID" });
 
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);

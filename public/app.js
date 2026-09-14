@@ -110,11 +110,20 @@
       await simulateDelay(400);
       setStep(stepGenerate);
 
-      const response = await fetch(`/api/regenerate/${discordId}`);
+      const response = await fetch(`/api/regenerate/${discordId}`, { method: "POST" });
 
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
+        // The server answers with JSON for rate limits (429) and for the busy
+        // signal (503); fall back to plain text for anything else.
+        let message = `HTTP ${response.status}`;
+        try {
+          const payload = await response.clone().json();
+          if (payload?.error) message = payload.error;
+        } catch {
+          const text = await response.text();
+          if (text) message = text;
+        }
+        throw new Error(message);
       }
 
       setStep(stepFinalize);
