@@ -78,7 +78,7 @@ app.get("/api/card/:id", renderLimiter, async (req, res) => {
   console.log(`[Cache Miss] Generating card for ${discordId}...`);
 
   const browser = await puppeteer.launch({
-    headless: "new",
+    headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
   try {
@@ -179,7 +179,7 @@ app.post("/api/regenerate/:id", regenerateLimiter, async (req, res) => {
   console.log(`[Regenerate] Generating fresh card for ${discordId}...`);
 
   const browser = await puppeteer.launch({
-    headless: "new",
+    headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
   try {
